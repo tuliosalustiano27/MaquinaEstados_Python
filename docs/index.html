@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>plcfsm — CLP em Python, lado a lado</title>
+<meta name="description" content="Cada trecho de Structured Text (CODESYS / IEC 61131-3) ao lado do Python equivalente, com a biblioteca plcfsm.">
+<style>
+:root{
+  --bg:#fbfaf7; --surface:#ffffff; --text:#1c1b19; --muted:#6a665e; --border:#e3dfd6;
+  --accent:#0b6e5f; --accent-soft:#e3f2ee; --accent-ink:#ffffff;
+  --st:#a85008; --st-soft:#fbeedd;
+  --code-bg:#f6f4ef; --code-text:#2a2823;
+  --t-kw:#7c3aed; --t-str:#0a7c4a; --t-com:#8a867c; --t-deco:#b45309; --t-num:#b3261e;
+  --mono:ui-monospace,"Cascadia Code","SFMono-Regular",Consolas,Menlo,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#13120f; --surface:#1b1a16; --text:#ecebe5; --muted:#a29e94; --border:#2f2d27;
+    --accent:#4fd1b8; --accent-soft:#16312c; --accent-ink:#0c1f1b;
+    --st:#f0a85c; --st-soft:#2e2414;
+    --code-bg:#0e0d0a; --code-text:#e6e4dc;
+    --t-kw:#c4a7ff; --t-str:#7ee0a5; --t-com:#8d897e; --t-deco:#f5b86b; --t-num:#ff9b8f;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#13120f; --surface:#1b1a16; --text:#ecebe5; --muted:#a29e94; --border:#2f2d27;
+  --accent:#4fd1b8; --accent-soft:#16312c; --accent-ink:#0c1f1b;
+  --st:#f0a85c; --st-soft:#2e2414;
+  --code-bg:#0e0d0a; --code-text:#e6e4dc;
+  --t-kw:#c4a7ff; --t-str:#7ee0a5; --t-com:#8d897e; --t-deco:#f5b86b; --t-num:#ff9b8f;
+}
+:root{color-scheme:light dark}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--accent);overflow-wrap:anywhere}
+code,pre{font-family:var(--mono);font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+:not(pre)>code{background:var(--code-bg);padding:.12em .38em;border-radius:5px;font-size:.88em;overflow-wrap:anywhere}
+h1,h2,h3{line-height:1.2;letter-spacing:-.01em}
+h2{font-size:1.6rem;margin:0 0 .3rem}
+h3{font-size:1.12rem;margin:0}
+p{margin:.45rem 0 1rem}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+.topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:54px}
+.brand{font-weight:700;font-family:var(--mono);color:var(--text);text-decoration:none;white-space:nowrap}
+.brand b{color:var(--accent)}
+.navscroll{display:flex;gap:2px;overflow-x:auto;flex:1;scrollbar-width:none}
+.navscroll::-webkit-scrollbar{display:none}
+.navscroll a{color:var(--muted);text-decoration:none;font-size:.88rem;padding:6px 10px;border-radius:8px;white-space:nowrap}
+.navscroll a:hover,.navscroll a.on{background:var(--accent-soft);color:var(--accent)}
+.theme{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit;font-size:.85rem}
+.theme:focus-visible,.navscroll a:focus-visible,.cp:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.hero{padding:54px 0 26px}
+.hero h1{font-size:clamp(2rem,5vw,3rem);margin:0 0 .6rem}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero .lead{font-size:1.15rem;color:var(--muted);max-width:720px;margin:0 0 1.3rem}
+.install{display:flex;align-items:center;gap:10px;max-width:100%;width:fit-content;background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:6px 6px 6px 14px}
+.install code{background:none;padding:0;font-size:.85rem;overflow-x:auto;white-space:nowrap}
+.hero .small{font-size:.88rem;color:var(--muted);margin:.7rem 0 0}
+
+section{padding:42px 0 6px;border-top:1px solid var(--border)}
+.sub{color:var(--muted);max-width:720px;margin:0 0 1.3rem}
+
+/* ST | Python lado a lado */
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--code-bg)}
+.pane{margin:0;min-width:0}
+.pane+.pane{border-left:1px solid var(--border)}
+.pane figcaption{display:flex;align-items:center;gap:8px;padding:7px 14px;font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;border-bottom:1px solid var(--border)}
+.pane.st figcaption{background:var(--st-soft);color:var(--st)}
+.pane.py figcaption{background:var(--accent-soft);color:var(--accent)}
+.pane figcaption small{font-weight:500;letter-spacing:.02em;text-transform:none;opacity:.8}
+pre.code{position:relative;margin:0;background:var(--code-bg);color:var(--code-text);padding:14px 16px;overflow:auto;font-size:.83rem;line-height:1.55;tab-size:4}
+pre.code code{font-family:var(--mono)}
+.cp{position:absolute;top:6px;right:6px;border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:7px;font-size:.7rem;padding:2px 8px;cursor:pointer;font-family:var(--sans);opacity:0;transition:opacity .15s}
+pre.code:hover .cp,.cp:focus-visible{opacity:1}
+.install .cp{position:static;opacity:1;flex:none;padding:5px 10px}
+.k{color:var(--t-kw);font-weight:600}.s{color:var(--t-str)}.c{color:var(--t-com);font-style:italic}.d{color:var(--t-deco)}.n{color:var(--t-num)}
+pre.out{border:1px solid var(--border);border-radius:12px;font-size:.8rem}
+.single{border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.single figcaption{padding:7px 14px;font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;background:var(--accent-soft);color:var(--accent);border-bottom:1px solid var(--border)}
+figure.single{margin:0 0 1rem}
+
+.legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 0}
+.legend div{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:.88rem;color:var(--muted)}
+.legend b{display:block;color:var(--text);font-size:.9rem;margin-bottom:2px}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 1.6rem}
+.chips a{font-size:.85rem;border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:4px 12px;color:var(--text);text-decoration:none}
+.chips a:hover{border-color:var(--accent);color:var(--accent)}
+.piece{padding:26px 0 8px;border-top:1px dashed var(--border)}
+.piece:first-of-type{border-top:0;padding-top:0}
+.piece h3 small{font-family:var(--mono);font-weight:500;font-size:.78rem;color:var(--muted);margin-left:6px}
+.piece>p{color:var(--muted);margin:.25rem 0 .8rem;max-width:760px}
+.piece .note{margin:.8rem 0 0}
+.note{border-left:4px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 10px 10px 0;font-size:.93rem}
+.note.warn{border-color:var(--st);background:var(--st-soft)}
+.note p{margin:0}
+
+.tw{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 0 1rem}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--code-bg);font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td:first-child code{background:var(--st-soft);color:var(--st)}
+td:last-child code{background:var(--accent-soft);color:var(--accent)}
+
+.phases{list-style:none;margin:0 0 1.2rem;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;counter-reset:f}
+.phases li{counter-increment:f;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:.86rem;color:var(--muted);min-width:0}
+.phases li::before{content:counter(f);display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:.82rem;margin-bottom:8px}
+.phases li.hot{border-color:var(--accent)}
+.phases li.hot::before{background:var(--accent);color:var(--accent-ink)}
+.phases code{display:block;margin-bottom:3px;color:var(--text);font-size:.8rem}
+.gotchas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 1rem}
+.gotchas div{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:.92rem;color:var(--muted)}
+.gotchas b{display:block;color:var(--text);margin-bottom:2px}
+.gotchas p{margin:0}
+
+.steps{counter-reset:s;list-style:none;padding:0;margin:0 0 1rem}
+.steps>li{counter-increment:s;position:relative;padding:0 0 18px 46px;min-width:0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:700;display:grid;place-items:center;font-size:.9rem}
+.steps>li>b{display:block;margin-bottom:2px}
+.steps>li>p{margin:.1rem 0 .6rem}
+.steps pre.code{border:1px solid var(--border);border-radius:12px}
+.steps pre.code+pre.code{margin-top:8px}
+
+footer{padding:34px 0 56px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--border);margin-top:36px}
+@media (max-width:900px){
+  .phases{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .legend{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:700px){
+  .pair{grid-template-columns:minmax(0,1fr)}
+  .pane+.pane{border-left:0;border-top:1px solid var(--border)}
+  .phases,.gotchas,.legend{grid-template-columns:minmax(0,1fr)}
+  .hero{padding-top:34px}
+  .cp{opacity:1}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#topo">plc<b>fsm</b></a>
+    <nav class="navscroll" aria-label="Seções">
+      <a href="#maquina">Máquina completa</a>
+      <a href="#pecas">Peça por peça</a>
+      <a href="#tabela">Equivalências</a>
+      <a href="#varredura">Varredura</a>
+      <a href="#usar">Usar</a>
+      <a href="#api">API</a>
+    </nav>
+    <button class="theme" id="theme" type="button" aria-label="Alternar tema claro/escuro">Tema</button>
+  </div>
+</header>
+
+<main class="wrap" id="topo">
+
+<div class="hero">
+  <h1>CLP em Python, <em>lado a lado</em>.</h1>
+  <p class="lead">Cada trecho de Structured Text (CODESYS / IEC 61131-3) ao lado do Python equivalente. Mesma varredura, mesma semântica do <code>eEstado := X</code> — mais o que o CLP não dá: o motivo de cada transição, <code>explain()</code> e diagrama gerado do código.</p>
+  <div class="install">
+    <code id="installcmd">pip install git+https://github.com/tuliosalustiano27/MaquinaEstados_Python.git</code>
+    <button class="cp" type="button" data-copy="installcmd">copiar</button>
+  </div>
+  <p class="small">Python 3.10+ · sem dependências · pacote <code>plcfsm</code> · <a href="https://github.com/tuliosalustiano27/MaquinaEstados_Python">código no GitHub</a></p>
+</div>
+
+<!-- ============================================================ -->
+<section id="maquina">
+  <h2>Uma máquina completa</h2>
+  <p class="sub">Estação de furação: um cilindro avança, a broca fura por 2 s, o cilindro recua. Se o cilindro demorar mais de 3 s, vai para <code>FALHA</code>. É o mesmo comportamento nos dois lados.</p>
+
+  <div class="pair">
+    <figure class="pane st">
+      <figcaption>ST <small>CODESYS</small></figcaption>
+<pre class="code" data-lang="st"><code>TYPE E_ESTADO :
+(
+    PARADO    := 0,
+    AVANCANDO := 1,
+    FURANDO   := 2,
+    RECUANDO  := 3,
+    FALHA     := 4
+);
+END_TYPE
+
+FUNCTION_BLOCK FB_Furadeira
+VAR_INPUT
+    ixStart, ixReset                      : BOOL;
+    ixCilindroAvancado, ixCilindroRecuado : BOOL;
+END_VAR
+VAR_OUTPUT
+    qxAvancar, qxFurar : BOOL;
+END_VAR
+VAR CONSTANT
+    TEMPO_FURO       : TIME := T#2S;
+    TIMEOUT_CILINDRO : TIME := T#3S;
+END_VAR
+VAR
+    eEstado, eEstadoAnt : E_ESTADO;
+    rtrigStart          : R_TRIG;
+    tmrFuro, tmrEstado  : TON;
+END_VAR
+
+(* 1. entradas *)
+rtrigStart(CLK := ixStart);
+tmrFuro(IN := eEstado = E_ESTADO.FURANDO, PT := TEMPO_FURO);
+
+(* 2. troca de estado: reinicia o tempo no estado *)
+IF eEstado &lt;&gt; eEstadoAnt THEN
+    eEstadoAnt := eEstado;
+    tmrEstado(IN := FALSE);
+END_IF
+tmrEstado(IN := TRUE, PT := T#1H);
+
+(* 3. o CASE: um ramo por varredura *)
+CASE eEstado OF
+    E_ESTADO.PARADO:
+        IF rtrigStart.Q AND ixCilindroRecuado THEN
+            eEstado := E_ESTADO.AVANCANDO;
+        END_IF
+
+    E_ESTADO.AVANCANDO:
+        IF ixCilindroAvancado THEN
+            eEstado := E_ESTADO.FURANDO;
+        ELSIF tmrEstado.ET &gt;= TIMEOUT_CILINDRO THEN
+            eEstado := E_ESTADO.FALHA;
+        END_IF
+
+    E_ESTADO.FURANDO:
+        IF tmrFuro.Q THEN
+            eEstado := E_ESTADO.RECUANDO;
+        END_IF
+
+    E_ESTADO.RECUANDO:
+        IF ixCilindroRecuado THEN
+            eEstado := E_ESTADO.PARADO;
+        ELSIF tmrEstado.ET &gt;= TIMEOUT_CILINDRO THEN
+            eEstado := E_ESTADO.FALHA;
+        END_IF
+
+    E_ESTADO.FALHA:
+        IF ixReset AND ixCilindroRecuado THEN
+            eEstado := E_ESTADO.PARADO;
+        END_IF
+END_CASE
+
+(* 4. saídas derivadas do estado *)
+qxAvancar := (eEstado = E_ESTADO.AVANCANDO) OR (eEstado = E_ESTADO.FURANDO);
+qxFurar   := eEstado = E_ESTADO.FURANDO;</code></pre>
+    </figure>
+    <figure class="pane py">
+      <figcaption>Python <small>plcfsm</small></figcaption>
+<pre class="code" data-lang="py"><code>from dataclasses import dataclass
+from enum import IntEnum
+
+from plcfsm import TON, RTrig, StateMachine, state
+
+
+class Estado(IntEnum):
+    PARADO = 0
+    AVANCANDO = 1
+    FURANDO = 2
+    RECUANDO = 3
+    FALHA = 4
+
+
+@dataclass
+class IO:
+    ix_start: bool = False
+    ix_reset: bool = False
+    ix_cilindro_avancado: bool = False
+    ix_cilindro_recuado: bool = True
+
+
+class Furadeira(StateMachine):
+    states = Estado
+    initial = Estado.PARADO
+
+    TEMPO_FURO = 2.0         # s
+    TIMEOUT_CILINDRO = 3.0   # s
+
+    def __init__(self, io, **kw):
+        super().__init__(**kw)
+        self.io = io
+        self.rtrig_start = RTrig()
+        self.tmr_furo = TON(self.TEMPO_FURO, clock=self.clock)
+        self.qx_avancar = False
+        self.qx_furar = False
+
+    def read_inputs(self):                                  # 1. entradas
+        self.rtrig_start(self.io.ix_start)
+        self.tmr_furo(self.state is Estado.FURANDO)
+
+    # 2. troca de estado: a biblioteca detecta sozinha
+    # 3. o CASE: um método por estado
+    @state(Estado.PARADO)
+    def _parado(self):
+        if self.rtrig_start.q and self.io.ix_cilindro_recuado:
+            self.goto(Estado.AVANCANDO, "start")
+
+    @state(Estado.AVANCANDO)
+    def _avancando(self):
+        if self.io.ix_cilindro_avancado:
+            self.goto(Estado.FURANDO)
+        elif self.timed_out(self.TIMEOUT_CILINDRO):
+            self.goto(Estado.FALHA, "cilindro não avançou a tempo")
+
+    @state(Estado.FURANDO)
+    def _furando(self):
+        if self.tmr_furo.q:
+            self.goto(Estado.RECUANDO)
+
+    @state(Estado.RECUANDO)
+    def _recuando(self):
+        if self.io.ix_cilindro_recuado:
+            self.goto(Estado.PARADO, "ciclo concluído")
+        elif self.timed_out(self.TIMEOUT_CILINDRO):
+            self.goto(Estado.FALHA, "cilindro não recuou a tempo")
+
+    @state(Estado.FALHA)
+    def _falha(self):
+        if self.io.ix_reset and self.io.ix_cilindro_recuado:
+            self.goto(Estado.PARADO, "reset")
+
+    def write_outputs(self):                                # 4. saídas
+        self.qx_avancar = self.state in (Estado.AVANCANDO, Estado.FURANDO)
+        self.qx_furar = self.state is Estado.FURANDO</code></pre>
+    </figure>
+  </div>
+
+  <div class="legend">
+    <div><b>VAR_INPUT / OUTPUT</b>viram uma <code>IO</code> (entradas) e atributos <code>qx_*</code> (saídas).</div>
+    <div><b>CASE</b>vira um método <code>@state(...)</code> por estado.</div>
+    <div><b>eEstado := X</b>vira <code>self.goto(X, "motivo")</code>.</div>
+    <div><b>eEstado &lt;&gt; eEstadoAnt</b>some: a biblioteca detecta a troca e reinicia <code>state_time</code>.</div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="pecas">
+  <h2>Peça por peça</h2>
+  <p class="sub">Cada construção do ST, isolada, com o equivalente em Python.</p>
+  <nav class="chips" aria-label="Peças">
+    <a href="#p-ramo">Ramo do CASE</a><a href="#p-goto">Trocar de estado</a><a href="#p-rtrig">Borda de subida</a><a href="#p-ton">Timer TON</a><a href="#p-saidas">Saídas</a><a href="#p-entry">Ao entrar</a><a href="#p-sr">Latch SR</a><a href="#p-handshake">Pedido + eco</a><a href="#p-regras">ELSIF longo</a><a href="#p-override">Override</a>
+  </nav>
+
+  <article class="piece" id="p-ramo">
+    <h3>Um ramo do CASE <small>CASE · @state · timeout de passo</small></h3>
+    <p>Cada estado vira um método. O watchdog de passo (<code>tmrEstado.ET &gt;= T#3S</code>) vira <code>timed_out(segundos)</code>.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>E_ESTADO.AVANCANDO:
+    IF ixCilindroAvancado THEN
+        eEstado := E_ESTADO.FURANDO;
+    ELSIF tmrEstado.ET &gt;= TIMEOUT_CILINDRO THEN
+        eEstado := E_ESTADO.FALHA;
+    END_IF</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>@state(Estado.AVANCANDO)
+def _avancando(self):
+    if self.io.ix_cilindro_avancado:
+        self.goto(Estado.FURANDO)
+    elif self.timed_out(self.TIMEOUT_CILINDRO):
+        self.goto(Estado.FALHA, "cilindro não avançou a tempo")</code></pre>
+      </figure>
+    </div>
+    <div class="note"><p><code>state_time</code> é o <code>tmrEstado.ET</code> em segundos. Um estado que você esquecer de declarar dá <code>ConfigError</code> na criação da máquina (ou liste-o em <code>idle_states</code>).</p></div>
+  </article>
+
+  <article class="piece" id="p-goto">
+    <h3>Trocar de estado <small>eEstado := X · goto</small></h3>
+    <p>É só uma atribuição: não encerra o ramo e não executa o novo estado agora. O motivo (opcional) vai para <code>m.history</code>.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>eEstado := E_ESTADO.AVANCANDO;</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>self.goto(Estado.AVANCANDO, "start")</code></pre>
+      </figure>
+    </div>
+  </article>
+
+  <article class="piece" id="p-rtrig">
+    <h3>Borda de subida <small>R_TRIG · F_TRIG</small></h3>
+    <p>Chame o bloco <b>uma vez por varredura</b> (em <code>read_inputs()</code>) e leia <code>.q</code> onde precisar, como o <code>.Q</code> do ST. <code>FTrig</code> é a borda de descida.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>rtrigStart(CLK := ixStart);
+
+IF rtrigStart.Q AND ixCilindroRecuado THEN
+    eEstado := E_ESTADO.AVANCANDO;
+END_IF</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>self.rtrig_start = RTrig()                 # no __init__
+self.rtrig_start(self.io.ix_start)         # em read_inputs()
+
+if self.rtrig_start.q and self.io.ix_cilindro_recuado:
+    self.goto(Estado.AVANCANDO, "start")</code></pre>
+      </figure>
+    </div>
+  </article>
+
+  <article class="piece" id="p-ton">
+    <h3>Timer TON <small>TON · TOF · TP</small></h3>
+    <p>O tempo é em segundos (<code>T#2S</code> vira <code>2.0</code>). <code>.q</code> e <code>.et</code> são o <code>.Q</code> e o <code>.ET</code> do ST.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>tmrFuro(IN := eEstado = E_ESTADO.FURANDO, PT := TEMPO_FURO);
+
+IF tmrFuro.Q THEN
+    eEstado := E_ESTADO.RECUANDO;
+END_IF</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>self.tmr_furo = TON(self.TEMPO_FURO, clock=self.clock)   # no __init__
+self.tmr_furo(self.state is Estado.FURANDO)              # em read_inputs()
+
+if self.tmr_furo.q:
+    self.goto(Estado.RECUANDO)</code></pre>
+      </figure>
+    </div>
+    <div class="note"><p><code>clock=self.clock</code> liga o timer ao relógio da máquina. Nos testes você passa um relógio falso e avança o tempo sem <code>sleep</code> (veja <a href="#usar">Usar</a>).</p></div>
+  </article>
+
+  <article class="piece" id="p-saidas">
+    <h3>Saídas derivadas do estado <small>write_outputs</small></h3>
+    <p>A saída é função do estado, calculada <b>depois</b> do CASE. Se um override jogar a máquina em <code>FALHA</code>, a broca desliga sozinha: ninguém precisa lembrar de desligá-la.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>qxAvancar := (eEstado = E_ESTADO.AVANCANDO) OR (eEstado = E_ESTADO.FURANDO);
+qxFurar   := eEstado = E_ESTADO.FURANDO;</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>def write_outputs(self):
+    self.qx_avancar = self.state in (Estado.AVANCANDO, Estado.FURANDO)
+    self.qx_furar = self.state is Estado.FURANDO</code></pre>
+      </figure>
+    </div>
+  </article>
+
+  <article class="piece" id="p-entry">
+    <h3>Ao entrar no estado <small>eEstado &lt;&gt; eEstadoAnt · on_entry</small></h3>
+    <p>Roda uma vez, na primeira varredura depois de entrar, antes do ramo do estado. Também existem <code>@on_exit(...)</code> e <code>on_state_change(old, new)</code>.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>IF eEstado &lt;&gt; eEstadoAnt THEN
+    eEstadoAnt := eEstado;
+    IF eEstado = E_ESTADO.DOSANDO THEN
+        nDoses := nDoses + 1;
+    END_IF
+END_IF</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>@on_entry(Estado.DOSANDO)
+def _entra_dosando(self):
+    self.doses += 1</code></pre>
+      </figure>
+    </div>
+    <div class="note warn"><p>Na <b>primeira</b> varredura não há "entrada" do estado inicial, igual ao ST (<code>eEstadoAnt</code> começa igual a <code>eEstado</code>). Para disparar, crie a máquina com <code>fire_initial_entry=True</code>.</p></div>
+  </article>
+
+  <article class="piece" id="p-sr">
+    <h3>Latch SR / RS <small>SR · RS</small></h3>
+    <p><code>SR</code>: o SET domina. <code>RS</code>: o RESET domina. Lê-se com <code>.q</code> (o <code>.Q1</code> do ST).</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>srFalha(SET1 := ixNivelBaixo, RESET := rtrigReset.Q);
+
+(* srFalha.Q1 só cai com RESET e o SET já desligado *)</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>self.sr_falha = SR()                                       # no __init__
+self.sr_falha(self.io.ix_nivel_baixo, self.rtrig_reset.q)  # em read_inputs()
+
+# lê com self.sr_falha.q</code></pre>
+      </figure>
+    </div>
+  </article>
+
+  <article class="piece" id="p-handshake">
+    <h3>Pedido com confirmação <small>REQ → eco · Handshake</small></h3>
+    <p>Mantém o pedido ligado a cada varredura até o outro lado ecoar de volta. Então volta ao valor ocioso e <code>request()</code> devolve <code>True</code> uma vez.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>E_ESTADO.PEDINDO_MATERIAL:
+    eReqPedido := E_PEDIDO.ALIMENTAR;
+    IF eReqPedido = eEcoPedido THEN
+        eReqPedido := E_PEDIDO.NENHUM;
+        eEstado := E_ESTADO.DOSANDO;
+    ELSIF tmrEstado.ET &gt;= T#5S THEN
+        eReqPedido := E_PEDIDO.NENHUM;
+        eEstado := E_ESTADO.FALHA;
+    END_IF</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>self.req_pedido = Handshake(Pedido.NENHUM)    # no __init__
+
+@state(Estado.PEDINDO_MATERIAL)
+def _pedindo(self):
+    if self.req_pedido.request(Pedido.ALIMENTAR, ack=self.io.e_eco_pedido):
+        self.goto(Estado.DOSANDO, "alimentador confirmou")
+    elif self.timed_out(5.0):
+        self.req_pedido.release()
+        self.goto(Estado.FALHA, "alimentador não respondeu")</code></pre>
+      </figure>
+    </div>
+    <div class="note"><p><code>req_pedido.value</code> é o que você escreve na saída para o outro lado; <code>.active</code> diz se há pedido pendente; <code>.release()</code> cancela.</p></div>
+  </article>
+
+  <article class="piece" id="p-regras">
+    <h3>IF/ELSIF longo vira tabela de decisão <small>RuleSet · decide · explain</small></h3>
+    <p>As pernas do ELSIF viram <code>Rule</code>s em ordem de prioridade; a primeira verdadeira vence. Cada termo tem um rótulo, e <code>&amp; | ~</code> têm a mesma precedência de <code>AND OR NOT</code> do ST.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>E_ESTADO.PARADO:
+    IF srFalha.Q1 THEN
+        eEstado := E_ESTADO.FALHA;
+    ELSIF rtrigStart.Q AND NOT srFalha.Q1 THEN
+        eEstado := E_ESTADO.PEDINDO_MATERIAL;
+    END_IF</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>FALHA_ATIVA = T("srFalha.Q", lambda s: s.sr_falha.q)
+START = T("rtrigStart.Q", lambda s: s.rtrig_start.q)
+
+DECISOR = RuleSet("decisor", [
+    Rule("falha", Estado.FALHA, when=FALHA_ATIVA),
+    Rule("inicia", Estado.PEDINDO_MATERIAL, when=START &amp; ~FALHA_ATIVA),
+])
+
+@state(Estado.PARADO)
+def _parado(self):
+    self.decide(DECISOR)</code></pre>
+      </figure>
+    </div>
+    <p style="margin-top:1rem">No CLP, descobrir por que a perna 2 não disparou exige ficar online olhando o ST. Aqui é uma linha:</p>
+<figure class="single">
+<figcaption>Python</figcaption>
+<pre class="code" data-lang="py" data-check="free"><code>print(m.explain(DECISOR))</code></pre>
+</figure>
+<pre class="code out" data-lang="txt" data-expect="explain"><code>[decisor] regra escolhida: falha
+  1. falha -> FALHA  [+] ESCOLHIDA
+  2. inicia -> PEDINDO_MATERIAL  [-] bloqueada por: NOT srFalha.Q</code></pre>
+    <div class="note"><p>As condições precisam ser <b>puras</b> (só lêem): o <code>explain()</code> avalia todas as regras, inclusive as que perderam por prioridade. <code>Rule(..., enabled=False)</code> é o <code>AND (FALSE)</code> que se deixa no ST para desligar uma perna.</p></div>
+  </article>
+
+  <article class="piece" id="p-override">
+    <h3>Override global depois do CASE <small>after_case</small></h3>
+    <p>Lógica que vale para qualquer estado (emergência, modo manual) roda depois do ramo. Se ela der <code>goto</code>, o último vence, como no ST.</p>
+    <div class="pair">
+      <figure class="pane st">
+        <figcaption>ST</figcaption>
+<pre class="code" data-lang="st"><code>(* logo depois do END_CASE *)
+IF ixEmergencia THEN
+    eReqPedido := E_PEDIDO.NENHUM;
+    eEstado := E_ESTADO.EMERGENCIA;
+END_IF</code></pre>
+      </figure>
+      <figure class="pane py">
+        <figcaption>Python</figcaption>
+<pre class="code" data-lang="py"><code>def after_case(self):
+    if self.io.ix_emergencia:
+        self.req_pedido.release()
+        self.goto(Estado.EMERGENCIA, "botão de emergência")</code></pre>
+      </figure>
+    </div>
+    <div class="note"><p>Há também <code>before_case()</code>, para o que precisa rodar antes do ramo (por exemplo, travar um pulso que chegou).</p></div>
+  </article>
+</section>
+
+<!-- ============================================================ -->
+<section id="tabela">
+  <h2>Tabela de equivalências</h2>
+  <p class="sub">A cola rápida: o que escrever em Python para cada construção do ST.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Structured Text</th><th>plcfsm (Python)</th></tr></thead>
+    <tbody>
+      <tr><td><code>TYPE E_X : (A := 0, B := 1)</code></td><td><code>class X(IntEnum)</code> — com os <b>mesmos números</b> do CLP (HMI e telemetria dependem deles)</td></tr>
+      <tr><td><code>FUNCTION_BLOCK FB_X</code></td><td><code>class X(StateMachine)</code> com <code>states</code> e <code>initial</code></td></tr>
+      <tr><td><code>VAR_INPUT</code> / <code>VAR_OUTPUT</code></td><td>uma <code>@dataclass IO</code> (<code>ix_*</code>) e atributos <code>qx_*</code></td></tr>
+      <tr><td><code>CASE eEstado OF ... END_CASE</code></td><td>um método <code>@state(E.A)</code> por estado</td></tr>
+      <tr><td><code>eEstado := X;</code></td><td><code>self.goto(X, "motivo")</code></td></tr>
+      <tr><td><code>eEstado = X</code></td><td><code>self.state is X</code></td></tr>
+      <tr><td><code>IF eEstado &lt;&gt; eEstadoAnt</code></td><td><code>@on_entry(...)</code> · <code>@on_exit(...)</code> · <code>on_state_change()</code></td></tr>
+      <tr><td><code>R_TRIG</code> / <code>F_TRIG</code> (<code>.Q</code>)</td><td><code>RTrig()</code> / <code>FTrig()</code> (<code>.q</code>)</td></tr>
+      <tr><td><code>TON</code> / <code>TOF</code> / <code>TP</code> (<code>PT := T#2S</code>, <code>.Q</code>, <code>.ET</code>)</td><td><code>TON(2.0)</code> / <code>TOF(2.0)</code> / <code>TP(2.0)</code> (<code>.q</code>, <code>.et</code>)</td></tr>
+      <tr><td><code>SR</code> / <code>RS</code> (<code>.Q1</code>)</td><td><code>SR()</code> / <code>RS()</code> (<code>.q</code>)</td></tr>
+      <tr><td><code>tmrEstado.ET &gt;= T#3S</code></td><td><code>self.timed_out(3.0)</code> · <code>self.state_time</code></td></tr>
+      <tr><td><code>eReq := X; IF eReq = eEco ...</code></td><td><code>Handshake(idle).request(X, ack=eco)</code></td></tr>
+      <tr><td><code>IF ... ELSIF ... ELSIF ...</code> longo</td><td><code>RuleSet</code> + <code>self.decide(...)</code></td></tr>
+      <tr><td><code>AND</code> · <code>OR</code> · <code>NOT</code> em termos rotulados</td><td><code>AND(...)</code> · <code>OR(...)</code> · <code>NOT(...)</code> ou <code>&amp;</code> · <code>|</code> · <code>~</code></td></tr>
+      <tr><td>código logo depois do <code>END_CASE</code></td><td><code>after_case()</code> (e <code>write_outputs()</code> para as saídas)</td></tr>
+      <tr><td><code>TRUE</code> · <code>FALSE</code> · <code>T#2S</code></td><td><code>True</code> · <code>False</code> · <code>2.0</code> (segundos)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section id="varredura">
+  <h2>A varredura</h2>
+  <p class="sub">Cada <code>scan()</code> executa as 6 fases abaixo, sempre nesta ordem, como a task do CLP. Você só escreve as fases de que precisa.</p>
+  <ol class="phases">
+    <li><code>read_inputs()</code>ler tags, atualizar R_TRIG e timers</li>
+    <li><code>on_exit · on_entry</code>troca de estado (automático)</li>
+    <li><code>before_case()</code>antes do CASE</li>
+    <li class="hot"><code>@state(...)</code>UM ramo: o do estado atual</li>
+    <li><code>after_case()</code>overrides globais</li>
+    <li><code>write_outputs()</code>escrever saídas</li>
+  </ol>
+  <div class="gotchas">
+    <div><b>goto não é return</b><p>Depois do <code>goto</code>, o resto do ramo continua rodando, igual a <code>eEstado := X;</code>. Não escreva <code>return</code> por hábito.</p></div>
+    <div><b>Um ramo por varredura</b><p><code>goto(B)</code> dentro de <code>A</code> <b>não</b> executa <code>B</code> agora: o novo estado só roda na próxima varredura.</p></div>
+    <div><b>O último goto vence</b><p>Um override em <code>after_case()</code> sobrepõe o que o ramo decidiu. O estado intermediário fica no <code>history</code>.</p></div>
+    <div><b>Cada bloco, uma vez por varredura</b><p>Chame <code>RTrig</code>, <code>TON</code> etc. só em <code>read_inputs()</code>; chamar duas vezes quebra a borda e o tempo, como no CLP.</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="usar">
+  <h2>Usar</h2>
+  <p class="sub">Do zero até uma máquina rodando e testada.</p>
+  <ol class="steps">
+    <li><b>Instale</b>
+<pre class="code" data-lang="sh"><code>pip install git+https://github.com/tuliosalustiano27/MaquinaEstados_Python.git</code></pre>
+    </li>
+    <li><b>Escreva sua máquina</b>
+<p>Copie o exemplo completo acima, também em <a href="https://github.com/tuliosalustiano27/MaquinaEstados_Python/blob/main/examples/minimo.py"><code>examples/minimo.py</code></a>. Os outros padrões, rodando, estão em <a href="https://github.com/tuliosalustiano27/MaquinaEstados_Python/blob/main/examples/padroes.py"><code>examples/padroes.py</code></a>.</p>
+    </li>
+    <li><b>Rode em ciclo</b>
+<p><code>run(m, period=0.05)</code> varre a cada 50 ms. Aqui, só 3 varreduras:</p>
+<pre class="code" data-lang="py" data-check="run"><code>from examples.minimo import Furadeira, IO
+from plcfsm import run
+
+m = Furadeira(IO(ix_start=True))
+run(m, period=0.05, max_scans=3)
+print(m.state.name)
+for t in m.history:                    # o que o CLP não conta: o porquê
+    print(t.scan, t.src.name, "->", t.dst.name, t.reason)</code></pre>
+<pre class="code out" data-lang="txt" data-expect="run"><code>AVANCANDO
+1 PARADO -> AVANCANDO start</code></pre>
+    </li>
+    <li><b>Teste sem hardware e sem dormir</b>
+<p>Passe um relógio falso e avance o tempo na mão, sem <code>sleep</code>.</p>
+<pre class="code" data-lang="py" data-check="fakeclock"><code>from examples.minimo import Furadeira, IO
+
+t = [0.0]
+m = Furadeira(IO(ix_start=True), clock=lambda: t[0])   # relógio falso
+
+m.scan()                  # PARADO -> AVANCANDO
+m.scan()                  # a entrada no estado é registrada aqui
+t[0] += 3.0               # "passam" 3 s, sem dormir
+m.scan()                  # o cilindro não chegou: FALHA
+print(m.state.name, "|", m.history[-1].reason)</code></pre>
+<pre class="code out" data-lang="txt" data-expect="fakeclock"><code>FALHA | cilindro não avançou a tempo</code></pre>
+    </li>
+    <li><b>Analise sem executar</b>
+<p>O grafo sai do próprio código, sem declarar nada duas vezes.</p>
+<pre class="code" data-lang="sh"><code>python -m plcfsm examples.minimo:Furadeira              # estados inalcançáveis / sem saída
+python -m plcfsm examples.minimo:Furadeira --mermaid    # diagrama stateDiagram-v2</code></pre>
+<pre class="code out" data-lang="txt" data-expect="cli"><code>Furadeira: 7 transições
+inalcançáveis (0): -
+sem saída própria (0): -</code></pre>
+    </li>
+  </ol>
+  <div class="note warn"><p><b>Limite:</b> Python não é tempo real determinístico. Use para supervisão, coordenação, simulação, gêmeo digital e testes. <b>Nunca</b> como intertravamento de segurança.</p></div>
+</section>
+
+<!-- ============================================================ -->
+<section id="api">
+  <h2>API em uma tela</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Grupo</th><th>O que tem</th></tr></thead>
+    <tbody>
+      <tr><td>Máquina</td><td><code>StateMachine</code> · <code>@state</code> · <code>@on_entry</code> · <code>@on_exit</code> · <code>run</code> · <code>idle_states</code></td></tr>
+      <tr><td>Ganchos da varredura</td><td><code>read_inputs</code> · <code>before_case</code> · <code>after_case</code> · <code>write_outputs</code> · <code>on_state_change</code></td></tr>
+      <tr><td>Na instância</td><td><code>goto</code> · <code>scan</code> · <code>state_time</code> · <code>timed_out</code> · <code>history</code> · <code>scan_transitions</code> · <code>state_scans</code> · <code>snapshot()</code> · <code>reset()</code></td></tr>
+      <tr><td>Blocos IEC</td><td><code>RTrig</code> · <code>FTrig</code> · <code>SR</code> · <code>RS</code> · <code>TON</code> · <code>TOF</code> · <code>TP</code> · <code>Handshake</code></td></tr>
+      <tr><td>Regras</td><td><code>T</code> · <code>AND</code> · <code>OR</code> · <code>NOT</code> · <code>Rule</code> · <code>RuleSet</code> · <code>decide</code> · <code>explain</code></td></tr>
+      <tr><td>Análise</td><td><code>analyze</code> · <code>to_mermaid</code> · <code>python -m plcfsm modulo:Classe</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>
+  <a href="https://github.com/tuliosalustiano27/MaquinaEstados_Python">github.com/tuliosalustiano27/MaquinaEstados_Python</a> · plcfsm 0.1.0
+</footer>
+
+</main>
+
+<script>
+(function () {
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  var LANGS = {
+    py: {
+      re: /(#[^\n]*)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')|(@\w+)|\b(def|class|if|elif|else|return|import|from|as|not|and|or|in|is|None|True|False|lambda|pass|for|while|with|try|except|raise)\b|\b(\d+(?:\.\d+)?)\b/g,
+      cls: ['c', 's', 'd', 'k', 'n']
+    },
+    st: {
+      re: /(\(\*[\s\S]*?\*\)|\/\/[^\n]*)|('[^'\n]*')|\b(T#[0-9A-Za-z_]+)|\b(IF|THEN|ELSIF|ELSE|END_IF|CASE|OF|END_CASE|FUNCTION_BLOCK|END_FUNCTION_BLOCK|VAR_INPUT|VAR_OUTPUT|VAR|CONSTANT|END_VAR|TYPE|END_TYPE|AND|OR|NOT|TRUE|FALSE)\b|\b(BOOL|INT|TIME|TON|TOF|TP|R_TRIG|F_TRIG|SR|RS)\b|\b(\d+)\b/g,
+      cls: ['c', 's', 'n', 'k', 'd', 'n']
+    },
+    sh: { re: /(#[^\n]*)/g, cls: ['c'] },
+    txt: null
+  };
+  function highlight(code, lang) {
+    var L = LANGS[lang];
+    if (!L) return esc(code);
+    var out = '', last = 0, m;
+    L.re.lastIndex = 0;
+    while ((m = L.re.exec(code)) !== null) {
+      var i = 1;
+      while (i < m.length && m[i] === undefined) i++;
+      out += esc(code.slice(last, m.index)) + '<span class="' + L.cls[i - 1] + '">' + esc(m[0]) + '</span>';
+      last = m.index + m[0].length;
+      if (m[0].length === 0) L.re.lastIndex++;
+    }
+    return out + esc(code.slice(last));
+  }
+  function copyText(text, btn) {
+    function done() { var old = btn.textContent; btn.textContent = 'copiado'; setTimeout(function () { btn.textContent = old; }, 1200); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {});
+    }
+  }
+
+  document.querySelectorAll('pre.code').forEach(function (pre) {
+    var code = pre.querySelector('code');
+    var raw = code.textContent;
+    code.innerHTML = highlight(raw, pre.getAttribute('data-lang'));
+    if (pre.classList.contains('out')) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'cp'; b.textContent = 'copiar';
+    b.setAttribute('aria-label', 'Copiar código');
+    b.addEventListener('click', function () { copyText(raw, b); });
+    pre.appendChild(b);
+  });
+  document.querySelectorAll('button[data-copy]').forEach(function (b) {
+    b.addEventListener('click', function () { copyText(document.getElementById(b.getAttribute('data-copy')).textContent, b); });
+  });
+
+  var root = document.documentElement, tb = document.getElementById('theme');
+  try { var saved = localStorage.getItem('plcfsm-theme'); if (saved) root.setAttribute('data-theme', saved); } catch (e) {}
+  tb.addEventListener('click', function () {
+    var cur = root.getAttribute('data-theme') ||
+      (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('plcfsm-theme', next); } catch (e) {}
+  });
+
+  var links = {};
+  document.querySelectorAll('.navscroll a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting && links[en.target.id]) {
+          Object.keys(links).forEach(function (k) { links[k].classList.remove('on'); });
+          links[en.target.id].classList.add('on');
+        }
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    Object.keys(links).forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>
